@@ -22,6 +22,7 @@ from util_func_stimcat import transform_stim
 EEG_ENABLED = False
 EEG_PORT_ADDRESS = '0x3FD8'
 EEG_DEFAULT_PULSE_MS = 10
+STUDY_TAG = "perc"
 
 TRIG = {
 
@@ -206,6 +207,7 @@ if __name__ == "__main__":
         n_total,
         resume_window=RESUME_WINDOW,
         new_session_cooldown=NEW_SESSION_COOLDOWN,
+        study_tag=STUDY_TAG,
     )
     session_num = session_info["session_num"]
     part_num = session_info["part_num"]
@@ -402,7 +404,10 @@ if __name__ == "__main__":
                     if EEG_ENABLED:
                         df = pd.read_csv(full_path)
                     else:
-                        session_name = f"sub_{subject}_sess_{session_num:03d}_part_"
+                        session_name = (
+                            f"sub_{subject}_{STUDY_TAG}_sess_"
+                            f"{session_num:03d}_part_"
+                        )
                         join_files = sorted(
                             os.path.join(dir_data, fn)
                             for fn in os.listdir(dir_data)

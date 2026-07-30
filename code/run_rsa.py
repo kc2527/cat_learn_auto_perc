@@ -33,6 +33,7 @@ TRIG = {
 }
 
 PID_DIGITS = 3
+STUDY_TAG = "perc"
 MODE = "rsa"
 ALLOWED_SUBJECT_IDS = {
     "002",
@@ -150,6 +151,7 @@ if __name__ == "__main__":
         resume_window=RESUME_WINDOW,
         new_session_cooldown=NEW_SESSION_COOLDOWN,
         task_tag=MODE,
+        study_tag=STUDY_TAG,
     )
     session_num = session_info["session_num"]
     session_part = session_info["part_num"]

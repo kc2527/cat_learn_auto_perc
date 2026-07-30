@@ -36,27 +36,24 @@ def resolve_session(dir_data,
                     resume_window=timedelta(hours=12),
                     new_session_cooldown=timedelta(hours=8),
                     now=None,
-                    task_tag=None):
+                    task_tag=None,
+                    study_tag=None):
     now = datetime.now() if now is None else now
     today = now.date()
 
-    if task_tag is None:
-        fn_re_part = re.compile(
-            rf"^sub_{re.escape(str(subject))}_sess_(\d{{3}})_part_(\d{{3}})_date_(\d{{4}}_\d{{2}}_\d{{2}})_data\.csv$"
-        )
-    else:
-        fn_re_part = re.compile(
-            rf"^sub_{re.escape(str(subject))}_task_{re.escape(str(task_tag))}_sess_(\d{{3}})_part_(\d{{3}})_date_(\d{{4}}_\d{{2}}_\d{{2}})_data\.csv$"
-        )
+    file_prefix = f"sub_{subject}"
+    if study_tag is not None:
+        file_prefix += f"_{study_tag}"
+    if task_tag is not None:
+        file_prefix += f"_task_{task_tag}"
+
+    fn_re_part = re.compile(
+        rf"^{re.escape(file_prefix)}_sess_(\d{{3}})_part_(\d{{3}})_date_(\d{{4}}_\d{{2}}_\d{{2}})_data\.csv$"
+    )
 
     def build_filename(session_num, part_num, date_key):
-        if task_tag is None:
-            return (
-                f"sub_{subject}_sess_{int(session_num):03d}_part_{int(part_num):03d}"
-                f"_date_{date_key}_data.csv"
-            )
         return (
-            f"sub_{subject}_task_{task_tag}_sess_{int(session_num):03d}_part_{int(part_num):03d}"
+            f"{file_prefix}_sess_{int(session_num):03d}_part_{int(part_num):03d}"
             f"_date_{date_key}_data.csv"
         )
 
