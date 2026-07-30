@@ -56,6 +56,10 @@ TRIG = {
     # Probe trials
     "FB_COR_PROBE": 42,
     "FB_INC_PROBE": 43,
+
+    # Timeouts
+    "FB_TIMEOUT_TRAIN": 44,
+    "FB_TIMEOUT_PROBE": 45,
 }
 
 PID_DIGITS = 3
@@ -86,6 +90,15 @@ SIZE_CM = 5
 SIZE_PX = int(SIZE_CM * PX_PER_CM)
 RESUME_WINDOW = timedelta(hours=12)
 NEW_SESSION_COOLDOWN = timedelta(hours=8)
+RESPONSE_LIMIT_MS = 1500
+FIRST_EEG_RESPONSE_LIMIT_MS = 5000
+FIRST_EEG_SLOW_TRIALS = 500
+# 1. EEG session 1 is fixed at 600 for response-limit familiarisation.
+# 2. Sessions 2-8 use seven balanced locations spanning the IQR:
+#    [150, 200, 250, 300, 350, 400, 450]
+# 3. These seven locations were shuffled once using:
+# np.random.default_rng(2026).permutation([150, 200, 250, 300, 350, 400, 450])
+PROBE_LOCATIONS = [600, 150, 300, 400, 200, 450, 350, 250]
 
 # ----------------------------------------------------------------------------------
 
@@ -99,10 +112,10 @@ if __name__ == "__main__":
 
     # --------------------------- Experiment parameters ---------------------------
     if EEG_ENABLED:
-        n_train = 550
-        n_test = 100
+        n_train = 600
+        n_test = 50
     else:
-        n_train = 20
+        n_train = 400
         n_test = 0
 
     n_total = n_train + n_test
@@ -163,6 +176,14 @@ if __name__ == "__main__":
                             units='pix',
                             pos=(0, 0))
 
+    too_slow_text = visual.TextStim(
+        win,
+        text="Too slow",
+        color='black',
+        height=32,
+        pos=(0, SIZE_PX // 2 + 60),
+    )
+
     # --------------------------- response and clocks -----------------------------
     kb = keyboard.Keyboard()
     default_kb = keyboard.Keyboard()
@@ -222,7 +243,15 @@ if __name__ == "__main__":
     ds_test = ds_test.iloc[:n_test, :]
     ds_test["phase"] = "test"
 
-    ds = pd.concat([ds_train, ds_test]).reset_index(drop=True)
+    if EEG_ENABLED:
+        probe_location = PROBE_LOCATIONS[session_num - 1]
+        ds = pd.concat([
+            ds_train.iloc[:probe_location],
+            ds_test,
+            ds_train.iloc[probe_location:]
+        ]).reset_index(drop=True)
+    else:
+        ds = ds_train.reset_index(drop=True)
 
     # NOTE: Uncomment to visualize stimulus space scatter
     # import matplotlib.pyplot as plt
@@ -272,6 +301,7 @@ if __name__ == "__main__":
     trig_resp = np.nan
     trig_fb = np.nan
     t_resp = np.nan
+    response_limit_ms = RESPONSE_LIMIT_MS
 
     # Record keeping
     trial_data = {
@@ -383,23 +413,38 @@ if __name__ == "__main__":
                     train_df = df[df["phase"] == "train"]
                     accuracy = 100 * (train_df["fb"] == "Correct").mean()
 
-                    # TODO: finalise end of experiment messages and implement
+                    saved_df = pd.read_csv(full_path)
+                    saved_df["session_accuracy_pct"] = round(accuracy, 1)
+                    saved_df.to_csv(full_path, index=False)
 
-                    # if acc < 80 and session_num >= 3 -> "100% is possible on
-                    # this task! Please reach out to the research team" 
+                    performance_message = ""
+                    if ((session_num <= 2 and accuracy < 70)
+                         or (3 <= session_num < 5 and accuracy < 80)
+                         or (session_num >= 5 and accuracy < 85)):
+                        performance_message = ("100% is possible on this task! Please reach out "
+                                               "to the research team.")
 
-                    # if acc < 90 and session_num >= 5 -> "100% is possible on
-                    # this task! Keep trying!"
+                    elif accuracy < 90 and session_num >= 3:
+                        performance_message = ("100% is possible on this task! Keep trying!")
 
-                    # if acc < 95 and acc > 90 and session_num >= 11 -> "100% is
-                    # possible on this task! You're getting closer, keep going!"
+                    elif accuracy < 95 and session_num >= 5:
+                        performance_message = ("100% is possible on this task! You're getting "
+                                               "closer, keep going!")
 
-                    # if acc < 100 and acc > 95 -> "You're almost there!"
+                    elif 95 <= accuracy < 99:
+                        performance_message = ("You're almost there!")
 
-                    finished_text.text = (
-                        "You finished! Thank you for participating!\n\n"
-                        f"Training accuracy: {accuracy:.1f}%"
-                    )
+                    elif 99 <= accuracy < 100:
+                        performance_message = ("Wanna guess how many you got wrong...?")
+
+                    elif accuracy == 100:
+                        performance_message = ("Congratulations on being awesome!")
+
+                    finished_text.text = ("You finished! Thank you for participating!\n\n"
+                                          f"Training accuracy: {accuracy:.1f}%")
+
+                    if performance_message:
+                        finished_text.text += f"\n\n{performance_message}"
 
                     state_current = "state_finished"
                     state_entry = True
@@ -415,6 +460,11 @@ if __name__ == "__main__":
                         raise ValueError(
                             f"Category labels must be 'A' or 'B'. Got: {cat}")
                     phase = ds['phase'].iloc[trial]
+                    if (EEG_ENABLED and session_num == 1
+                            and trial < FIRST_EEG_SLOW_TRIALS):
+                        response_limit_ms = FIRST_EEG_RESPONSE_LIMIT_MS
+                    else:
+                        response_limit_ms = RESPONSE_LIMIT_MS
                     trig_stim = np.nan
                     trig_resp = np.nan
                     trig_fb = np.nan
@@ -481,7 +531,7 @@ if __name__ == "__main__":
             grating.draw()
 
             keys = kb.getKeys(keyList=['d', 'k'], waitRelease=False)
-            if keys:
+            if keys and keys[-1].rt * 1000.0 <= response_limit_ms:
                 k = keys[-1]
                 resp_key = k.name
                 rt = k.rt * 1000.0
@@ -519,6 +569,18 @@ if __name__ == "__main__":
                 state_current = "state_pre_feedback_gap"
                 state_entry = True
 
+            elif time_state >= response_limit_ms:
+                resp_key = "Timeout"
+                resp = "Timeout"
+                fb = "Too slow"
+                rt = -1
+                t_resp = np.nan
+
+                state_clock.reset()
+                gap_ms = np.random.randint(200, 401)
+                state_current = "state_pre_feedback_gap"
+                state_entry = True
+
             win.flip()
 
         # --------------------- STATE: PRE-FEEDBACK GAP ---------------------
@@ -544,16 +606,26 @@ if __name__ == "__main__":
                     if fb == "Correct":
                         fb_ring.lineColor = 'green'
                         trig = TRIG["FB_COR_TRAIN"]
-                    else:
+                    elif fb == "Incorrect":
                         fb_ring.lineColor = 'red'
                         trig = TRIG["FB_INC_TRAIN"]
+                    elif fb == "Too slow":
+                        fb_ring.lineColor = 'black'
+                        trig = TRIG["FB_TIMEOUT_TRAIN"]
+                    else:
+                        trig = np.nan
                 elif phase == 'test':
                     if fb == "Correct":
                         fb_ring.lineColor = 'green'
                         trig = TRIG["FB_COR_PROBE"]
-                    else:
+                    elif fb == "Incorrect":
                         fb_ring.lineColor = 'red'
                         trig = TRIG["FB_INC_PROBE"]
+                    elif fb == "Too slow":
+                        fb_ring.lineColor = 'black'
+                        trig = TRIG["FB_TIMEOUT_PROBE"]
+                    else:
+                        trig = np.nan
                 else:
                     trig = np.nan
 
@@ -569,6 +641,8 @@ if __name__ == "__main__":
 
             grating.draw()
             fb_ring.draw()
+            if fb == "Too slow":
+                too_slow_text.draw()
 
             if time_state > 1000:
 
