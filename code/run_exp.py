@@ -46,7 +46,7 @@ TRIG = {
     "RESP_B_TRAIN": 31,
 
     # Probe trials
-    "RESP_A_PROBE": 32,
+    "RESP_A_PROBE": 34,
     "RESP_B_PROBE": 33,
 
     # -------------------- Feedback --------------------
