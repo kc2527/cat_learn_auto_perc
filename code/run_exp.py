@@ -46,6 +46,7 @@ TRIG = {
     "RESP_B_TRAIN": 31,
 
     # Probe trials
+    # RESP_A_PROBE is now 34 because 32 does not work with other trigger cables
     "RESP_A_PROBE": 34,
     "RESP_B_PROBE": 33,
 
@@ -144,6 +145,26 @@ if __name__ == "__main__":
                                 color='white',
                                 height=32)
 
+    speed_notice_text = visual.TextStim(
+        win,
+        text=(
+            "The response time limit will now become shorter.\n\n"
+            "Please respond as accurately as you can.\n\n"
+            "Press the space bar to continue"
+        ),
+        color='white',
+        height=32)
+
+    break_text = visual.TextStim(
+        win,
+        text=(
+            "Another block is about to start.\n"
+            "Feel free to wriggle, blink, and get comfortable before you begin.\n\n"
+            "Press SPACE when you are ready."
+        ),
+        color='white',
+        height=32)
+
     finished_text = visual.TextStim(
         win,
         text="You finished! Thank you for participating!",
@@ -192,7 +213,7 @@ if __name__ == "__main__":
 
     subject, condition = prompt_for_pid(win, PID_DIGITS, CONDITION_BY_SUBJECT)
 
-    # ---------------------------  session handling -------------------------------
+    # ---------------------------  Session handling -------------------------------
     session_info = resolve_session(
         dir_data,
         subject,
@@ -207,6 +228,11 @@ if __name__ == "__main__":
     f_name = session_info["f_name"]
     full_path = session_info["full_path"]
     n_done = session_info["n_done"]
+
+    if session_num == 8:
+        eeg_break_trials = (299, 499)
+    else:
+        eeg_break_trials = (249, 499)
 
     # --------------------------- Stimuli and Categories  ---------------------------
     session_seed = stable_int_seed(f"{subject}_{session_num:03d}_exp")
@@ -351,8 +377,41 @@ if __name__ == "__main__":
             init_text.draw()
 
             keys = kb.getKeys(keyList=['space'], waitRelease=False, clear=True)
+
             if keys:
                 eeg.flip_pulse(TRIG["EXP_START"], global_clock=global_clock)
+                state_current = "state_iti"
+                state_entry = True
+
+            win.flip()
+
+        # --------------------- STATE: BREAK ---------------------
+        elif state_current == "state_break":
+            if state_entry:
+                kb.clearEvents()
+                state_entry = False
+
+            break_text.draw()
+
+            keys = kb.getKeys(keyList=['space'], waitRelease=False, clear=True,)
+
+            if keys:
+                state_current = "state_iti"
+                state_entry = True
+
+            win.flip()
+
+        # --------------------- STATE: SPEED NOTICE ---------------------
+        elif state_current == "state_speed_notice":
+            if state_entry:
+                kb.clearEvents()
+                state_entry = False
+
+            speed_notice_text.draw()
+
+            keys = kb.getKeys(keyList=['space'], waitRelease=False, clear=True,)
+
+            if keys:
                 state_current = "state_iti"
                 state_entry = True
 
@@ -674,7 +733,15 @@ if __name__ == "__main__":
 
                 pd.DataFrame(trial_data).to_csv(full_path, index=False)
 
-                state_current = "state_iti"
+                if (EEG_ENABLED
+                        and session_num == 1
+                        and trial == FIRST_EEG_SLOW_TRIALS - 1):
+                    state_current = "state_speed_notice"
+                elif EEG_ENABLED and trial in eeg_break_trials:
+                    state_current = "state_break"
+                else:
+                    state_current = "state_iti"
+
                 state_entry = True
                 rt = -1
 
