@@ -235,7 +235,7 @@ if __name__ == "__main__":
         eeg_break_trials = (249, 499)
 
     # --------------------------- Stimuli and Categories  ---------------------------
-    session_seed = stable_int_seed(f"{subject}_{session_num:03d}_exp")
+    session_seed = stable_int_seed(f"{STUDY_TAG}_{subject}_{session_num:03d}_exp")
     schedule_rng = np.random.default_rng(session_seed)
     n_stimuli_per_category = n_total // 2
     ds, ds_90, ds_180 = make_stim_cats(
