@@ -46,8 +46,8 @@ TRIG = {
     "RESP_B_TRAIN": 31,
 
     # Probe trials
-    # RESP_A_PROBE is now 34 because 32 does not work with other trigger cables
-    "RESP_A_PROBE": 34,
+    # RESP_A_PROBE is 38 because 32 does not work with other trigger cables
+    "RESP_A_PROBE": 38,
     "RESP_B_PROBE": 33,
 
     # -------------------- Feedback --------------------
