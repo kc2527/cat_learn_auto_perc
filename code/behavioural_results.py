@@ -17,6 +17,31 @@ df_dt_rec = []
 
 sns.set_palette('rocket')
 
+# Correct repeated session-number labels in the downloaded at-home files.
+# The corrected numbers follow the order in which each participant completed them.
+at_home_session_corrections = {
+    'sub_134_perc_sess_001_part_001_date_2026_08_05_data.csv': 1,
+    'sub_134_perc_sess_001_part_001_date_2026_08_06_data.csv': 2,
+    'sub_134_perc_sess_002_part_001_date_2026_08_07_data.csv': 3,
+    'sub_134_perc_sess_003_part_001_date_2026_08_13_data.csv': 4,
+    'sub_134_perc_sess_004_part_001_date_2026_08_14_data.csv': 5,
+    'sub_134_perc_sess_005_part_001_date_2026_08_16_data.csv': 6,
+    'sub_134_perc_sess_006_part_001_date_2026_08_19_data.csv': 7,
+    'sub_134_perc_sess_007_part_001_date_2026_08_20_data.csv': 8,
+    'sub_134_perc_sess_007_part_002_date_2026_08_20_data.csv': 8,
+    'sub_134_perc_sess_008_part_001_date_2026_08_23_data.csv': 9,
+    'sub_134_perc_sess_009_part_001_date_2026_08_25_data.csv': 10,
+    'sub_482_perc_sess_001_part_001_date_2026_08_07_data.csv': 1,
+    'sub_482_perc_sess_001_part_001_date_2026_08_09_data.csv': 2,
+    'sub_482_perc_sess_002_part_001_date_2026_08_10_data.csv': 3,
+    'sub_482_perc_sess_002_part_001_date_2026_08_15_data.csv': 4,
+    'sub_482_perc_sess_003_part_001_date_2026_08_16_data.csv': 5,
+    'sub_482_perc_sess_003_part_001_date_2026_08_17_data.csv': 6,
+    'sub_482_perc_sess_003_part_001_date_2026_08_19_data.csv': 7,
+    'sub_482_perc_sess_003_part_001_date_2026_08_23_data.csv': 8,
+    'sub_482_perc_sess_003_part_001_date_2026_08_24_data.csv': 9,
+}
+
 for fd in os.listdir(dir_data_lab):
     dir_data_lab_fd = os.path.join(dir_data_lab, fd)
     if os.path.isdir(dir_data_lab_fd):
@@ -24,27 +49,7 @@ for fd in os.listdir(dir_data_lab):
             f_full_path = os.path.join(dir_data_lab_fd, fs)
             if os.path.isfile(f_full_path) and fs.endswith('.csv'):
 
-                # in session 4, ActiView had a syncing error and crached 30
-                # trials in with participant 875, restarted experiment clean --
-                # removing extra data file
-                if fs not in ['sub_875_sess_004_part_001_date_2026_04_24_data (1).csv'
-                              ]:
-
                     df = pd.read_csv(f_full_path)
-
-                    # subject 594 missed lab day 4 due to illness, made up
-                    # session at home under id 444, changing id to 594 and
-                    # session_num to 4
-                    if fs == 'sub_444_sess_001_part_001_date_2026_05_24_data.csv':
-                        df['subject_id'] = 594
-                        df['session_num'] = 4
-
-                    # subject 594 completed sessions across 2 lab computers
-                    # throughout the experiment so relabelling 'session 3' as
-                    # 'session 5'
-                    if fs == 'sub_594_sess_003_part_001_date_2026_05_29_data.csv':
-                        df['session_num'] = 5
-
                     df['f_name'] = fs
                     df_lab_rec.append(df)
 
@@ -57,14 +62,9 @@ for fd in os.listdir(dir_data):
             if os.path.isfile(f_full_path) and 'task_cp_' not in fs:
                 
                 df = pd.read_csv(f_full_path)
+                if fs in at_home_session_corrections:
+                    df['session_num'] = at_home_session_corrections[fs]
                 df['f_name'] = fs
-
-                # subject 943, sesssion 6 labelled as session 2 in .csv, unsure
-                # why -- correcting that here
-                if fs == 'sub_943_sess_006_part_001_date_2026_04_29_data.csv':
-                    df['session_num'] = 6
-
-
                 session = df['session_num'].unique()
 
                 # training days
@@ -78,20 +78,6 @@ for fd in os.listdir(dir_data):
 d_lab = pd.concat(df_lab_rec, ignore_index=True)
 d_home = pd.concat(df_train_rec, ignore_index=True)
 d_dt = pd.concat(df_dt_rec, ignore_index=True)
-
-# in session 1, sub_875 completed 10 train trials and 50 probe trials (part 1),
-# then completed 540 train and 100 probe (part 2) -- adding 10 train trials from
-# part 1 to part 2
-f1 = 'sub_875_sess_001_part_001_date_2026_04_03_data (1).csv'
-f2 = 'sub_875_sess_001_part_002_date_2026_04_03_data.csv'
-
-p1_875 = d_lab[d_lab['f_name'] == f1]
-p2_875 = d_lab[d_lab['f_name'] == f2]
-
-p875 = pd.concat([p1_875[p1_875['phase'] == 'train'].head(10), p2_875], ignore_index=True)
-
-d_lab = d_lab[(d_lab['f_name'] != f1) & (d_lab['f_name'] != f2)]
-d_lab = pd.concat([d_lab, p875], ignore_index=True)
 
 # NOTE: create dfs
 block_size = 25
